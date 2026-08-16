@@ -1,6 +1,6 @@
 # Agent Memory Management
 
-A **production-validated** multi-layer memory management scheme for LLM agents. It was distilled from a real production environment (Hermes Agent, 7 days / 5000+ conversations of stress testing) into a framework-agnostic, copyable protocol.
+A **production-validated** multi-layer memory management scheme for LLM agents. It was distilled from long-term real-world production use (Hermes Agent) into a framework-agnostic, copyable protocol.
 
 **Core idea: memory is not a single cache — it is a three-layer division of labor.**
 
