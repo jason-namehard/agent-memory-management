@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 测试/临时
+.test-tmp/
+*.lock
+
+# 记忆库本体（真实知识不进仓库；用 example/ 做演示）
+memory-kb/
+
+# 系统
+.DS_Store
+Thumbs.db
