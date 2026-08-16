@@ -110,7 +110,7 @@ def split_l1_blocks(text: str) -> list:
             if blk:
                 out.append((blk, tokens[i + 1] if i + 1 < len(tokens) else ""))
         if tokens and tokens[-1].strip():
-            out.append((tokens[-1].strip(), ""))
+            out.append((tokens[-1].strip(), "\n" if text.endswith("\n") else ""))
         return out
     blocks, cur = [], None
     for ln in text.splitlines():
@@ -121,7 +121,7 @@ def split_l1_blocks(text: str) -> list:
         elif cur is not None:
             cur.append(ln)
     if cur is not None:
-        blocks.append(("\n".join(cur).strip(), ""))
+        blocks.append(("\n".join(cur).strip(), "\n" if text.endswith("\n") else ""))
     return blocks
 
 
@@ -163,7 +163,7 @@ def xlsx_to_l1(xlsx_path: Path) -> Path:
     for row in ws.iter_rows(min_row=2, values_only=True):
         if not row or not any(c is not None and str(c).strip() for c in row):
             continue
-        tag = str(row[1]).strip() if len(row) > 1 and row[1] else ""
+        tag = str(row[1]).strip().strip("[]").strip() if len(row) > 1 and row[1] else ""
         content = str(row[2]).strip() if len(row) > 2 and row[2] else ""
         orig = str(row[3]).strip() if len(row) > 3 and row[3] else ""
         sep = str(row[4]) if len(row) > 4 and row[4] is not None else ""
@@ -178,11 +178,13 @@ def xlsx_to_l1(xlsx_path: Path) -> Path:
                 out.append(f"- {content}{sep}")
             else:  # 纯文本块
                 out.append(content + sep)
-        else:  # 原文列被清空：按当前行列重组
-            if tag:
-                out.append(f"[{tag}] {content}{sep}")
-            else:
-                out.append(content + sep)
+        else:  # 原文列被清空 / 新增行：按当前行列重组，未填分隔符则默认换行
+            raw_sep = sep
+            sep = sep or "\n"
+            piece = f"[{tag}] {content}" if tag else content
+            if out and not out[-1].endswith("\n") and not raw_sep.startswith("\n"):
+                piece = "\n" + piece  # 前置换行（单换行），避免与上一块粘连
+            out.append(piece + sep)
     md_path = xlsx_path.with_suffix(".md")
     md_path.write_text("".join(out), encoding="utf-8")
     SELF_WRITES[str(md_path)] = md_path.stat().st_mtime
