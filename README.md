@@ -1,5 +1,7 @@
 # Agent Memory Management（Agent 记忆管理办法）
 
+> 🌐 [English README](README.en.md)
+
 一套**实践验证过**的多层 Agent 记忆管理方案。源自真实生产环境的使用（Hermes Agent，7 天 5000+ 轮对话压测），提炼为与具体框架解耦的可复制协议。
 
 **核心理念：记忆不是一块缓存，而是三层分工的体系。**
@@ -53,8 +55,7 @@ agent-memory-management/
 │   ├── 03-存储记忆协议.md        # L2：索引卡/总目录/excel 同步
 │   ├── 04-会话与归档协议.md      # L3：会话生命周期/归档流程
 │   ├── 05-跨Agent接入指南.md     # 接入其它模型/框架的契约
-│   ├── 06-标签体系.md            # 标签分类法与裁决流程
-│   └── 07-真实案例.md            # 5000+ 轮对话的真实落地案例
+│   └── 06-标签体系.md            # 标签分类法与裁决流程
 ├── templates/
 │   ├── MEMORY.template.md        # L1 Agent 笔记模板
 │   ├── USER.template.md          # L1 用户档案模板
