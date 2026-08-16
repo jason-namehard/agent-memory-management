@@ -14,6 +14,10 @@ memory-kb 存储记忆同步器（方案A：md 主数据源 + xlsx 派生视图 
   python memorykb_sync.py watch [--kb <目录>]  # 常驻 watchdog（默认模式）
 路径解析优先级：--kb 参数 > 环境变量 MEMORY_KB > 默认 <脚本同目录>/memory-kb
 依赖：openpyxl、watchdog（pip install -r requirements.txt）
+
+L1 缓存记忆（MEMORY.md / USER.md）的 Excel 管理入口：
+  python memorykb_sync.py sync --l1 MEMORY.md   # L1 md -> xlsx（同目录同名 .xlsx）
+  python memorykb_sync.py back --l1 MEMORY.md   # L1 xlsx -> md（改过的行重组，未改行保留原文）
 """
 import os, re, sys, time, argparse
 from pathlib import Path
@@ -86,6 +90,101 @@ def xlsx_to_md(xlsx_path: Path) -> Path:
             out.append(str(row[1]) if row[1] is not None else "")
     md_path = xlsx_path.with_suffix(".md")
     md_path.write_text("\n".join(out), encoding="utf-8")
+    SELF_WRITES[str(md_path)] = md_path.stat().st_mtime
+    return md_path
+
+
+# ---------- L1 缓存记忆（MEMORY.md / USER.md）Excel 管理 ----------
+_L1_TAG_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(.*)$", re.S)   # [标签] 内容
+_L1_LIST_RE = re.compile(r"^\s*-\s+(.*)$", re.S)             # - 内容（无标签条目）
+
+
+def split_l1_blocks(text: str) -> list:
+    """把 L1 md 拆成 [(块原文, 块后分隔符), ...]，分隔符含 § 及其周围空白，反写可逐字节还原。
+    优先按 § 分隔（协议格式）；无 § 时按顶层 `- ` 列表项拆分（兼容现状，分隔符为 \\n）。"""
+    if "§" in text:
+        tokens = re.split(r"(\s*§\s*)", text)
+        out = []
+        for i in range(0, len(tokens) - 1, 2):
+            blk = tokens[i].strip()
+            if blk:
+                out.append((blk, tokens[i + 1] if i + 1 < len(tokens) else ""))
+        if tokens and tokens[-1].strip():
+            out.append((tokens[-1].strip(), ""))
+        return out
+    blocks, cur = [], None
+    for ln in text.splitlines():
+        if ln.strip().startswith("- "):
+            if cur is not None:
+                blocks.append(("\n".join(cur).strip(), "\n"))
+            cur = [ln]
+        elif cur is not None:
+            cur.append(ln)
+    if cur is not None:
+        blocks.append(("\n".join(cur).strip(), ""))
+    return blocks
+
+
+def parse_l1_block(block: str) -> tuple:
+    """解析一个块 -> (类型, 标签, 内容)。类型：tag=[标签]前缀 / list=-列表 / plain=纯文本。"""
+    b = block.strip()
+    m = _L1_TAG_RE.match(b)
+    if m:
+        return "tag", m.group(1).strip(), m.group(2).strip()
+    m = _L1_LIST_RE.match(b)
+    if m:
+        return "list", "", m.group(1).strip()
+    return "plain", "", b
+
+
+def l1_to_xlsx(md_path: Path) -> Path:
+    """L1 md -> xlsx：A=序号, B=标签, C=内容, D=原文, E=分隔符（反写还原用，勿改）"""
+    text = md_path.read_text(encoding="utf-8")
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "L1"
+    ws.append(["序号", "标签", "内容", "原文（只读参考：未修改的行反写时原样保留）", "分隔符（勿改）"])
+    for i, (b, sep) in enumerate(split_l1_blocks(text), 1):
+        kind, tag, content = parse_l1_block(b)
+        ws.append([i, tag, content, b, sep])
+    for col, w in zip("ABCDE", (6, 14, 80, 60, 10)):
+        ws.column_dimensions[col].width = w
+    xlsx_path = md_path.with_suffix(".xlsx")
+    wb.save(xlsx_path)
+    SELF_WRITES[str(xlsx_path)] = xlsx_path.stat().st_mtime
+    return xlsx_path
+
+
+def xlsx_to_l1(xlsx_path: Path) -> Path:
+    """L1 xlsx -> md：改过的行重组（[标签] 内容 / - 列表 / 纯文本）；未改的行保留原文，分隔符原样还原"""
+    wb = load_workbook(xlsx_path, read_only=False)
+    ws = wb.active
+    out = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or not any(c is not None and str(c).strip() for c in row):
+            continue
+        tag = str(row[1]).strip() if len(row) > 1 and row[1] else ""
+        content = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+        orig = str(row[3]).strip() if len(row) > 3 and row[3] else ""
+        sep = str(row[4]) if len(row) > 4 and row[4] is not None else ""
+        if orig:  # 未修改则保留原文（判断：重新解析原文与当前行一致）
+            kind0, t0, c0 = parse_l1_block(orig)
+            if t0.strip() == tag and c0.strip() == content:
+                out.append(orig + sep)
+                continue
+            if tag:  # 修改过：按新标签重组
+                out.append(f"[{tag}] {content}{sep}")
+            elif kind0 == "list":  # 原来是列表项
+                out.append(f"- {content}{sep}")
+            else:  # 纯文本块
+                out.append(content + sep)
+        else:  # 原文列被清空：按当前行列重组
+            if tag:
+                out.append(f"[{tag}] {content}{sep}")
+            else:
+                out.append(content + sep)
+    md_path = xlsx_path.with_suffix(".md")
+    md_path.write_text("".join(out), encoding="utf-8")
     SELF_WRITES[str(md_path)] = md_path.stat().st_mtime
     return md_path
 
@@ -226,11 +325,28 @@ def resolve_kb(args_kb: str | None) -> Path:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="memory-kb 存储记忆同步器")
+    ap = argparse.ArgumentParser(description="memory-kb 存储记忆同步器（含 L1 缓存记忆 Excel 管理）")
     ap.add_argument("cmd", nargs="?", default="watch", choices=["sync", "syncall", "back", "index", "watch"])
     ap.add_argument("--kb", help="memory-kb 目录路径（默认：环境变量 MEMORY_KB，再默认脚本同目录的 memory-kb/）")
+    ap.add_argument("--l1", help="L1 缓存记忆文件路径（MEMORY.md/USER.md）；配合 sync/syncall/back 使用，把该文件导出/反写 Excel")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
+
+    # ---- L1 模式：直接处理单个缓存记忆文件，不走 KB 目录 ----
+    if a.l1:
+        p = Path(a.l1)
+        if not p.exists():
+            sys.exit(f"错误：--l1 文件不存在：{p}")
+        if a.cmd in ("sync", "syncall"):
+            print("L1 导出 Excel：", l1_to_xlsx(p))
+        elif a.cmd == "back":
+            xp = p.with_suffix(".xlsx")
+            if not xp.exists():
+                sys.exit(f"错误：找不到 {xp}（先运行 sync --l1 生成）")
+            print("L1 从 Excel 反写：", xlsx_to_l1(xp))
+        else:
+            sys.exit("--l1 仅支持 sync / syncall / back")
+        return
 
     kb = resolve_kb(a.kb)
     if not kb.exists():

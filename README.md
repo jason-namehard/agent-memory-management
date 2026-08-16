@@ -42,7 +42,7 @@
 2. **初始化 L1**：写 MEMORY.md（Agent 笔记）+ USER.md（用户档案），条目带标签、`§` 分隔
 3. **初始化 L2**：建 memory-kb/ 与总目录.md，首个主题索引卡（**轻量起步**：也可先只用单个 MEMORY-KB.md 文件，容量大了再升级为目录）
 4. **接入 Agent**：在系统提示注入 L1 两个文件；声明"归档/存储记忆"两个触发指令
-5. **接入同步**（可选）：部署 md↔xlsx watchdog，让人类用 Excel 管理 L2
+5. **接入 Excel 管理**（可选）：L2 部署 md↔xlsx watchdog（`memorykb_sync.py watch`）；L1 用 `memorykb_sync.py sync --l1 MEMORY.md` 导出 / `back --l1` 反写——人类用 Excel 维护记忆，不用直接编辑 Markdown（详见 docs/02、03）
 
 ## 目录结构
 
@@ -73,6 +73,7 @@ agent-memory-management/
 ## 相关概念速查
 
 - **触发词**：`归档` = 整理当前会话并收尾（L3→归档库 + session 简介卡进 L2 + 继承清单），执行完当前对话结束；`存储记忆` = 更新 L2 索引。两者勿混。
+- **Excel 管理**：L1（MEMORY.md/USER.md）用 `sync --l1 <文件>` 导出、`back --l1 <文件>` 反写；L2（memory-kb/）用 `sync`/`watch` 双向同步。改过的行重组，未改行与分隔符原样保留，可逐字节还原。
 - **记忆审查**：后台自动写入可关闭；重大写入先人工确认；定期全文扫标签裁决。
 - **跨 Agent**：文件格式是纯 Markdown + 标签约定，任何 LLM 都能读；同步脚本可复用。
 

@@ -43,7 +43,7 @@ A **production-validated** multi-layer memory management scheme for LLM agents. 
 2. **Initialize L1**: write MEMORY.md (agent notes) + USER.md (user profile); tag each entry, separate with `§`
 3. **Initialize L2**: create memory-kb/ and the master catalog, add the first topic index card (**light start**: a single MEMORY-KB.md file works until it grows)
 4. **Wire into the agent**: inject the two L1 files into the system prompt; declare the two trigger words — "archive" and "store memory"
-5. **Optional sync**: deploy the md↔xlsx watchdog so humans can manage L2 in Excel
+5. **Optional Excel management**: for L2 deploy the md↔xlsx watchdog (`memorykb_sync.py watch`); for L1 run `memorykb_sync.py sync --l1 MEMORY.md` to export / `back --l1` to write back — manage memory in Excel without touching Markdown (see docs/02, 03)
 
 ## Repository layout
 
@@ -73,6 +73,7 @@ agent-memory-management/
 ## Concepts at a glance
 
 - **Trigger words**: `archive` = wrap up the current session (L3 → archive store + session summary card into L2 + handoff checklist); `store memory` = update L2 index. Don't mix them up.
+- **Excel management**: L1 (MEMORY.md/USER.md) via `sync --l1 <file>` / `back --l1 <file>`; L2 (memory-kb/) via `sync`/`watch`. Edited rows are rebuilt, untouched rows and separators are preserved byte-for-byte.
 - **Memory review**: background auto-writes can be disabled; major writes require human confirmation first; periodically scan all entries and adjudicate keep/delete/edit by tag.
 - **Cross-agent**: files are plain Markdown + tag conventions — any LLM can read them; sync scripts are reusable.
 
